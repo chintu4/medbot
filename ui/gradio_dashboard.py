@@ -52,12 +52,15 @@ def ask_medbot(question: str, model_name: str, top_k: int):
             "",
         )
 
-    result = pipeline.answer_question(
-        question=question,
-        api_key=gemini_api_key,
-        model=model_name,
-        top_k=top_k,
-    )
+    try:
+        result = pipeline.answer_question(
+            question=question,
+            api_key=gemini_api_key,
+            model=model_name,
+            top_k=top_k,
+        )
+    except Exception as exc:
+        return f"Unable to generate an answer with {model_name}: {exc}", "", ""
 
     answer = result.get("answer", "No answer returned.")
     context = result.get("context", "No context available.")
@@ -170,9 +173,12 @@ def build_demo():
                 )
 
                 with gr.Row():
+                    available_models = pipeline.list_available_gemini_models()
+                    if not available_models:
+                        available_models = ["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"]
                     model_choice = gr.Dropdown(
-                        choices=["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"],
-                        value="gemini-2.5-flash",
+                        choices=available_models,
+                        value=available_models[0],
                         label="Gemini model",
                     )
                     top_k = gr.Slider(

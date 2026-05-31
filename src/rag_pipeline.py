@@ -14,6 +14,11 @@ except ImportError:
     load_dotenv = None
 
 try:
+    from google import genai
+except ImportError:
+    genai = None
+
+try:
     import faiss
     _HAS_FAISS = True
 except ImportError:
@@ -28,6 +33,14 @@ GEMINI_ENV_KEYS = (
     "GOOGLE_GENAI_API_KEY",
     "GEMINI_TOKEN",
 )
+
+DEFAULT_GEMINI_MODEL_CHOICES = [
+    "gemini-3.5-flash",
+    "gemini-3.5-pro",
+    "gemini-3.0-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-lite",
+]
 
 
 def _load_environment() -> None:
@@ -240,8 +253,44 @@ class RagPipeline:
     @staticmethod
     def _build_gemini_endpoint(api_key: str, model: str) -> str:
         if api_key.startswith("AIza"):
-            return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateText?key={api_key}"
-        return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateText"
+            return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={api_key}"
+        return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent"
+
+    @staticmethod
+    def list_available_gemini_models(api_key: Optional[str] = None) -> List[str]:
+        api_key = _get_gemini_api_key(api_key)
+        if not api_key:
+            return []
+
+        if genai is not None:
+            try:
+                client = genai.Client(api_key=api_key)
+                response = client.models.list(config={"page_size": 200})
+                model_names = []
+                for model in getattr(response, "page", []):
+                    name = getattr(model, "name", None)
+                    if name:
+                        model_names.append(str(name))
+                if model_names:
+                    return model_names
+            except Exception:
+                pass
+
+        try:
+            endpoint = "https://generativelanguage.googleapis.com/v1/models"
+            params = {"key": api_key} if api_key.startswith("AIza") else {}
+            headers = RagPipeline._build_gemini_headers(api_key)
+            response = requests.get(endpoint, headers=headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict) and "models" in data:
+                model_names = [m["name"] for m in data["models"] if isinstance(m, dict) and "name" in m]
+                if model_names:
+                    return model_names
+        except Exception:
+            pass
+
+        return []
 
     @staticmethod
     def _parse_gemini_response(data: Dict) -> str:
@@ -302,10 +351,35 @@ class RagPipeline:
             f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
         )
 
+        if genai is not None:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt_text,
+                config={
+                    "temperature": temperature,
+                    "max_output_tokens": max_output_tokens,
+                },
+            )
+            if hasattr(response, "text") and response.text:
+                return response.text.strip()
+            if hasattr(response, "parts"):
+                return "\n".join(
+                    getattr(part, "text", "") for part in response.parts
+                ).strip()
+            return str(response)
+
         payload = {
-            "prompt": {"text": prompt_text},
-            "temperature": temperature,
-            "maxOutputTokens": max_output_tokens,
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt_text}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_output_tokens,
+            },
         }
 
         headers = RagPipeline._build_gemini_headers(api_key)
