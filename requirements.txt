@@ -6,6 +6,9 @@ sentence-transformers==5.5.1
 faiss-cpu==1.8.0
 python-dotenv==1.0.0
 google-genai==2.7.0
+langchain
+langchain-core
 datasets
 huggingface-hub
 torch>=2.0.0
+pypdf
