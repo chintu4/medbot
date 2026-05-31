@@ -4,7 +4,7 @@ emoji: 🤖
 colorFrom: blue
 colorTo: green
 sdk: gradio
-sdk_version: "4.11.0"
+sdk_version: "6.15.2"
 python_version: "3.11"
 app_file: app.py
 pinned: false
@@ -25,7 +25,7 @@ This repository is structured for a Space that uses a Gradio app. To make the Sp
 Recommended environment:
 
 - Python 3.10 or 3.11
-- `gradio==4.11.0`
+- `gradio==6.15.2`
 - `requests`
 - `PyPDF2`
 - `sentence-transformers`
