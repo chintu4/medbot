@@ -9,6 +9,11 @@ from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer
 
 try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+try:
     import faiss
     _HAS_FAISS = True
 except ImportError:
@@ -17,6 +22,30 @@ except ImportError:
 
 
 DEFAULT_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+GEMINI_ENV_KEYS = (
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_GENAI_API_KEY",
+    "GEMINI_TOKEN",
+)
+
+
+def _load_environment() -> None:
+    if load_dotenv is None:
+        return
+    load_dotenv(override=False)
+
+
+def _get_gemini_api_key(api_key: Optional[str] = None) -> Optional[str]:
+    if api_key:
+        return api_key
+
+    _load_environment()
+    for env_key in GEMINI_ENV_KEYS:
+        value = os.getenv(env_key)
+        if value:
+            return value
+    return None
 
 
 class RagPipeline:
@@ -200,6 +229,57 @@ class RagPipeline:
         return "\n---\n".join(context_parts)
 
     @staticmethod
+    def _build_gemini_headers(api_key: str) -> Dict[str, str]:
+        if api_key.startswith("AIza"):
+            return {"Content-Type": "application/json"}
+        return {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+    @staticmethod
+    def _build_gemini_endpoint(api_key: str, model: str) -> str:
+        if api_key.startswith("AIza"):
+            return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateText?key={api_key}"
+        return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateText"
+
+    @staticmethod
+    def _parse_gemini_response(data: Dict) -> str:
+        if not isinstance(data, dict):
+            return ""
+
+        # Modern Gemini text generation response structure.
+        if "candidates" in data and data["candidates"]:
+            first = data["candidates"][0]
+            if isinstance(first, dict):
+                if "output" in first and isinstance(first["output"], str):
+                    return first["output"].strip()
+                if "content" in first:
+                    content = first["content"]
+                    if isinstance(content, dict) and "parts" in content:
+                        return "\n".join(
+                            part.get("text", "") for part in content.get("parts", [])
+                        ).strip()
+                    if isinstance(content, list):
+                        return "\n".join(str(item) for item in content).strip()
+
+        if "output" in data:
+            if isinstance(data["output"], str):
+                return data["output"].strip()
+            if isinstance(data["output"], dict) and "content" in data["output"]:
+                return str(data["output"]["content"]).strip()
+
+        if "response" in data:
+            response_content = data["response"]
+            if isinstance(response_content, dict):
+                if "output" in response_content:
+                    return str(response_content["output"]).strip()
+                if "content" in response_content:
+                    return str(response_content["content"]).strip()
+
+        return ""
+
+    @staticmethod
     def generate_response_gemini(
         question: str,
         context: str,
@@ -208,35 +288,31 @@ class RagPipeline:
         temperature: float = 0.2,
         max_output_tokens: int = 512,
     ) -> str:
-        api_key = api_key or os.getenv("GEMINI_API_KEY")
+        api_key = _get_gemini_api_key(api_key)
         if not api_key:
-            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY or pass api_key.")
+            raise ValueError(
+                "Gemini API key is required. Set GEMINI_API_KEY, GOOGLE_API_KEY, "
+                "GOOGLE_GENAI_API_KEY, or add it to a local .env file."
+            )
 
-        endpoint = f"https://gemini.googleapis.com/v1beta2/models/{model}:generateText"
-        prompt = (
+        endpoint = RagPipeline._build_gemini_endpoint(api_key, model)
+        prompt_text = (
             "You are an expert medical assistant. Use the context from the PDFs to answer the question precisely. "
             "If the answer is not contained in the context, say you cannot find enough information.\n\n"
             f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
         )
 
         payload = {
-            "prompt": {"text": prompt},
+            "prompt": {"text": prompt_text},
             "temperature": temperature,
             "maxOutputTokens": max_output_tokens,
-            "candidateCount": 1,
         }
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+
+        headers = RagPipeline._build_gemini_headers(api_key)
         response = requests.post(endpoint, json=payload, headers=headers, timeout=60)
         response.raise_for_status()
         data = response.json()
-        text = ""
-        if "candidates" in data and data["candidates"]:
-            first = data["candidates"][0]
-            text = first.get("output") or first.get("content", [{}])[0].get("text", "")
-        return text.strip()
+        return RagPipeline._parse_gemini_response(data)
 
     def answer_question(
         self,

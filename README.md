@@ -32,6 +32,7 @@ Recommended environment:
 - `sentence-transformers==5.5.1`
 - `faiss-cpu==1.8.0`
 - `torch>=2.0.0`
+- `python-dotenv` for loading local `.env` files when present
 
 Install dependencies:
 
@@ -75,12 +76,14 @@ The app is already configured to load these medical PDF links:
 - `https://aiimsrishikesh.edu.in/documents/standard-treatment-guidelines.pdf`
 - `https://www.fao.org/4/y1238e/y1238e06.pdf`
 
-To use the demo, set your Gemini API key and run the app locally:
+To use the demo, configure the Gemini API key on the backend, then run the app locally:
 
 ```bash
 export GEMINI_API_KEY="your_gemini_api_key"
 python ui/gradio_dashboard.py
 ```
+
+Supported backend key names: `GEMINI_API_KEY`, `GOOGLE_API_KEY`, and `GOOGLE_GENAI_API_KEY`.
 
 Then open the Gradio link in your browser, ask a question, and the backend will retrieve PDF passages before sending them to Gemini.
 
