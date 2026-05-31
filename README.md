@@ -27,7 +27,7 @@ Recommended environment:
 - Python 3.10 or 3.11
 - `gradio==6.15.2`
 - `requests`
-- `PyPDF2`
+- `PyPDF2==3.0.1`
 - `sentence-transformers`
 - `faiss-cpu`
 - `torch`
