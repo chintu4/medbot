@@ -26,17 +26,20 @@ Recommended environment:
 
 - Python 3.10 or 3.11
 - `gradio==6.15.2`
+- `numpy<2`
 - `requests`
 - `PyPDF2==3.0.1`
-- `sentence-transformers`
-- `faiss-cpu`
-- `torch`
+- `sentence-transformers==5.5.1`
+- `faiss-cpu==1.8.0`
+- `torch>=2.0.0`
 
 Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
+
+> If `faiss` is not available in your local environment, the pipeline will still work with a fallback search method, but installing `faiss-cpu` gives better retrieval performance.
 
 ## Local Run
 If you add your Gradio interface to `ui/gradio_dashboard.py`, run locally with:

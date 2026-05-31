@@ -3,11 +3,17 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import faiss
 import requests
 import torch
 from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer
+
+try:
+    import faiss
+    _HAS_FAISS = True
+except ImportError:
+    faiss = None  # type: ignore
+    _HAS_FAISS = False
 
 
 DEFAULT_EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -108,10 +114,13 @@ class RagPipeline:
 
     def build_faiss_index(
         self, documents: List[Dict[str, str]]
-    ) -> Tuple[faiss.IndexFlatIP, torch.Tensor]:
+    ) -> Tuple[Optional["faiss.IndexFlatIP"], torch.Tensor]:
         texts = [doc["text"] for doc in documents]
         if not texts:
-            index = faiss.IndexFlatIP(1)
+            if _HAS_FAISS:
+                index = faiss.IndexFlatIP(1)
+            else:
+                index = None
             return index, torch.zeros((0, 1))
 
         embeddings = self.embed_model.encode(
@@ -120,12 +129,16 @@ class RagPipeline:
             show_progress_bar=True,
             device=self.embed_model.device,
         )
-        embeddings = embeddings.detach()
-        embeddings = embeddings.cpu()
-        faiss.normalize_L2(embeddings.numpy())
-        index = faiss.IndexFlatIP(embeddings.shape[1])
-        index.add(embeddings.numpy())
-        return index, embeddings
+        embeddings = embeddings.detach().cpu()
+
+        if _HAS_FAISS:
+            faiss.normalize_L2(embeddings.numpy())
+            index = faiss.IndexFlatIP(embeddings.shape[1])
+            index.add(embeddings.numpy())
+            return index, embeddings
+
+        embeddings = torch.nn.functional.normalize(embeddings, dim=1)
+        return None, embeddings
 
     def query(self, question: str, top_k: int = 3) -> List[Dict[str, str]]:
         if not self.documents:
@@ -135,10 +148,38 @@ class RagPipeline:
             convert_to_tensor=True,
             device=self.embed_model.device,
         )
-        query_embedding = query_embedding.detach().cpu().numpy().reshape(1, -1)
-        faiss.normalize_L2(query_embedding)
-        distances, indices = self.index.search(query_embedding, top_k)
+        query_embedding = query_embedding.detach().cpu()
+
+        if _HAS_FAISS and self.index is not None:
+            query_array = query_embedding.numpy().reshape(1, -1)
+            faiss.normalize_L2(query_array)
+            distances, indices = self.index.search(query_array, top_k)
+            results = []
+            for score, index in zip(distances[0], indices[0]):
+                if index < 0 or index >= len(self.documents):
+                    continue
+                results.append(
+                    {
+                        "score": float(score),
+                        "source": self.documents[index]["source"],
+                        "text": self.documents[index]["text"],
+                    }
+                )
+            return results
+
+        query_embedding = torch.nn.functional.normalize(query_embedding, dim=1)
+        scores = torch.matmul(self.embeddings, query_embedding.T).squeeze(1)
+        top_indices = torch.topk(scores, min(top_k, len(scores))).indices.tolist()
         results = []
+        for idx in top_indices:
+            results.append(
+                {
+                    "score": float(scores[idx].item()),
+                    "source": self.documents[idx]["source"],
+                    "text": self.documents[idx]["text"],
+                }
+            )
+        return results
         for score, index in zip(distances[0], indices[0]):
             if index < 0 or index >= len(self.documents):
                 continue
