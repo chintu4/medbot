@@ -1,3 +1,15 @@
+---
+title: MedBot
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: "4.11.0"
+python_version: "3.11"
+app_file: app.py
+pinned: false
+---
+
 # medbot
 
 A retrieval-augmented generation (RAG) demo project designed for a Hugging Face Spaces-friendly Gradio deployment.
