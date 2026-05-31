@@ -20,4 +20,4 @@ jobs:
       - name: Push to Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://chintu4:$HF_TOKEN@huggingface.co/spaces/chintu4/llm-based-movie-recommendation main
+        run: git push --force https://chintu4:$HF_TOKEN@huggingface.co/spaces/chintu4/med-bot main
