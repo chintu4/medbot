@@ -19,7 +19,7 @@ This repository is structured for a Space that uses a Gradio app. To make the Sp
 
 - `requirements.txt` with a pinned Gradio version.
 - `README.md` with installation, usage, and deployment notes.
-- `ui/gradio-dashboard.py` as the intended Gradio app entrypoint.
+- `ui/gradio_dashboard.py` as the intended Gradio app entrypoint.
 
 ## Requirements
 Recommended environment:
@@ -39,10 +39,10 @@ pip install -r requirements.txt
 ```
 
 ## Local Run
-If you add your Gradio interface to `ui/gradio-dashboard.py`, run locally with:
+If you add your Gradio interface to `ui/gradio_dashboard.py`, run locally with:
 
 ```bash
-python ui/gradio-dashboard.py
+python ui/gradio_dashboard.py
 ```
 
 For a basic Gradio app, this file should create a `gr.Interface` or `gr.Blocks` instance and call `launch()`.
@@ -62,7 +62,7 @@ To deploy on Hugging Face Spaces:
 - Install command: `pip install -r requirements.txt`
 
 ## What to Add
-This repo currently has a working app shell at `ui/gradio-dashboard.py`.
+This repo currently has a working app shell at `ui/gradio_dashboard.py`.
 
 The app is already configured to load these medical PDF links:
 
@@ -76,7 +76,7 @@ To use the demo, set your Gemini API key and run the app locally:
 
 ```bash
 export GEMINI_API_KEY="your_gemini_api_key"
-python ui/gradio-dashboard.py
+python ui/gradio_dashboard.py
 ```
 
 Then open the Gradio link in your browser, ask a question, and the backend will retrieve PDF passages before sending them to Gemini.
