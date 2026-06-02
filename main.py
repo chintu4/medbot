@@ -6,6 +6,8 @@ from sentence_transformers import SentenceTransformer, util
 
 DEFAULT_PICKLE = Path(__file__).parent / "rag_store.pkl"
 DEFAULT_MODEL = "BAAI/bge-large-en-v1.5"
+GOOGLE_DRIVE_FILE_ID = "1z3b0hd6-TFUu1fnrUi0gd1C0zugpSIv3"
+GOOGLE_DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc?export=download"
 
 
 def get_device():
@@ -18,10 +20,79 @@ def get_device():
     return "cpu"
 
 
+def _get_google_drive_confirm_token(text):
+    import re
+
+    match = re.search(r"confirm=([0-9A-Za-z_\-]+)&", text)
+    if match:
+        return match.group(1)
+
+    match = re.search(r"confirm=([0-9A-Za-z_\-]+)\"", text)
+    if match:
+        return match.group(1)
+
+    return None
+
+
+def download_google_drive_file(dest_path, file_id=GOOGLE_DRIVE_FILE_ID):
+    import requests
+
+    dest_path = Path(dest_path)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    session = requests.Session()
+    response = session.get(
+        GOOGLE_DRIVE_DOWNLOAD_URL,
+        params={"id": file_id},
+        stream=True,
+        timeout=30,
+    )
+
+    content_type = response.headers.get("Content-Type", "")
+    if "Content-Disposition" not in response.headers and "text/html" in content_type:
+        token = _get_google_drive_confirm_token(response.text)
+        if token:
+            response = session.get(
+                GOOGLE_DRIVE_DOWNLOAD_URL,
+                params={"id": file_id, "confirm": token},
+                stream=True,
+                timeout=30,
+            )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Failed to download file from Google Drive (status {response.status_code})"
+        )
+
+    with open(dest_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
+
+    return dest_path
+
+
+def ensure_store(path):
+    path = Path(path)
+    if path.exists():
+        return path
+
+    if path.name == DEFAULT_PICKLE.name:
+        print(
+            f"Store not found at {path}. Downloading default vector store from Google Drive..."
+        )
+        download_google_drive_file(path)
+        print(f"Downloaded store to {path}")
+        return path
+
+    raise FileNotFoundError(f"Store not found: {path}")
+
+
 def load_store(path):
     import pickle
 
-    with open(path, "rb") as f:
+    store_path = ensure_store(path)
+    with open(store_path, "rb") as f:
         return pickle.load(f)
 
 
