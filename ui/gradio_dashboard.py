@@ -17,6 +17,11 @@ from main import (
     retrieve_top_k,
 )
 
+HF_MODEL_CHOICES = [
+    "huggingface/google/flan-t5-large",
+    "huggingface/google/flan-t5-base",
+]
+
 PDF_URLS = [
     "https://bookchapter.org/kitaplar/Medical%20Diagnosis%20and%20Treatment%20Methods%20in%20Basic%20Medical%20Sciences.pdf",
     "https://applications.emro.who.int/dsaf/dsa236.pdf",
@@ -69,12 +74,20 @@ def ask_medbot(question: str, model_name: str, top_k: int):
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     if not gemini_api_key:
         gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GENAI_API_KEY")
-    if not gemini_api_key:
-        return (
-            "Server-side Gemini API key is not configured. Set GEMINI_API_KEY, GOOGLE_API_KEY, or GOOGLE_GENAI_API_KEY.",
-            "",
-            "",
-        )
+
+    hf_api_key = os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_API_KEY") or os.getenv("HUGGINGFACE_TOKEN")
+    is_hf_model = model_name.startswith("huggingface/") or model_name.startswith("hf:")
+
+    if not is_hf_model and not gemini_api_key:
+        if hf_api_key:
+            is_hf_model = True
+            model_name = HF_MODEL_CHOICES[0]
+        else:
+            return (
+                "Server-side Gemini API key is not configured. Set GEMINI_API_KEY, GOOGLE_API_KEY, or GOOGLE_GENAI_API_KEY, or use a Hugging Face model with HUGGINGFACE_API_KEY.",
+                "",
+                "",
+            )
 
     try:
         store = get_store_data()
@@ -95,12 +108,21 @@ def ask_medbot(question: str, model_name: str, top_k: int):
 
         context = "\n---\n".join(text for _, text in results)
         sources = [f"Document {i + 1}" for i in range(len(results))]
-        answer = RagPipeline.generate_response_gemini(
-            question=question,
-            context=context,
-            api_key=gemini_api_key,
-            model=model_name,
-        )
+        if is_hf_model:
+            answer = RagPipeline.generate_response_hf(
+                question=question,
+                context=context,
+                api_key=hf_api_key,
+                model=model_name,
+            )
+        else:
+            answer = RagPipeline.generate_response_gemini(
+                question=question,
+                context=context,
+                api_key=gemini_api_key,
+                model=model_name,
+            )
+
         source_markup = format_sources(sources)
         return answer, context, source_markup
     except Exception as exc:
@@ -214,10 +236,13 @@ def build_demo():
                     available_models = pipeline.list_available_gemini_models()
                     if not available_models:
                         available_models = ["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"]
+                    for hf_model in HF_MODEL_CHOICES:
+                        if hf_model not in available_models:
+                            available_models.append(hf_model)
                     model_choice = gr.Dropdown(
                         choices=available_models,
                         value=available_models[0],
-                        label="Gemini model",
+                        label="Model",
                     )
                     top_k = gr.Slider(
                         minimum=1,

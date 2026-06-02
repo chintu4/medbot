@@ -34,6 +34,12 @@ GEMINI_ENV_KEYS = (
     "GEMINI_TOKEN",
 )
 
+HF_ENV_KEYS = (
+    "HUGGINGFACE_API_KEY",
+    "HF_API_KEY",
+    "HUGGINGFACE_TOKEN",
+)
+
 DEFAULT_GEMINI_MODEL_CHOICES = [
     "gemini-3.5-flash",
     "gemini-3.5-pro",
@@ -55,6 +61,18 @@ def _get_gemini_api_key(api_key: Optional[str] = None) -> Optional[str]:
 
     _load_environment()
     for env_key in GEMINI_ENV_KEYS:
+        value = os.getenv(env_key)
+        if value:
+            return value
+    return None
+
+@staticmethod
+def _get_hf_api_key(api_key: Optional[str] = None) -> Optional[str]:
+    if api_key:
+        return api_key
+
+    _load_environment()
+    for env_key in HF_ENV_KEYS:
         value = os.getenv(env_key)
         if value:
             return value
@@ -393,6 +411,67 @@ class RagPipeline:
         response.raise_for_status()
         data = response.json()
         return RagPipeline._parse_gemini_response(data)
+
+    @staticmethod
+    def generate_response_hf(
+        question: str,
+        context: str,
+        api_key: Optional[str] = None,
+        model: str = "google/flan-t5-large",
+        temperature: float = 0.2,
+        max_new_tokens: int = 512,
+    ) -> str:
+        api_key = _get_hf_api_key(api_key)
+        if not api_key:
+            raise ValueError(
+                "Hugging Face API key is required. Set HUGGINGFACE_API_KEY, HF_API_KEY, or HUGGINGFACE_TOKEN."
+            )
+
+        if model.startswith("huggingface/"):
+            model = model.split("/", 1)[1]
+        if model.startswith("hf:"):
+            model = model.split(":", 1)[1]
+
+        endpoint = f"https://api-inference.huggingface.co/models/{model}"
+        prompt_text = (
+            "You are an expert medical assistant. Use the context from the PDFs to answer the question precisely. "
+            "If the answer is not contained in the context, say you cannot find enough information.\n\n"
+            f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+        )
+
+        payload = {
+            "inputs": prompt_text,
+            "parameters": {
+                "temperature": temperature,
+                "max_new_tokens": max_new_tokens,
+            },
+        }
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+
+        if isinstance(data, dict) and data.get("error"):
+            raise RuntimeError(data["error"])
+
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict) and "generated_text" in first:
+                return first["generated_text"].strip()
+            return str(first).strip()
+
+        if isinstance(data, dict):
+            if "generated_text" in data:
+                return data["generated_text"].strip()
+            if "output_text" in data:
+                return data["output_text"].strip()
+
+        return str(data).strip()
 
     def answer_question(
         self,
