@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 import gradio as gr
@@ -7,6 +8,14 @@ load_dotenv()
 print("GEMINI_API_KEY loaded:", bool(os.getenv("GEMINI_API_KEY")))
 
 from src.rag_pipeline import RagPipeline
+from main import (
+    DEFAULT_PICKLE,
+    DEFAULT_MODEL,
+    get_device,
+    load_model,
+    load_store,
+    retrieve_top_k,
+)
 
 PDF_URLS = [
     "https://bookchapter.org/kitaplar/Medical%20Diagnosis%20and%20Treatment%20Methods%20in%20Basic%20Medical%20Sciences.pdf",
@@ -22,7 +31,22 @@ PDF_PATHS = [
     # "./docs/sample.pdf"
 ]
 
-pipeline = RagPipeline(pdf_paths=PDF_PATHS, pdf_urls=PDF_URLS)
+SEARCH_MODEL = None
+STORE_DATA = None
+
+
+def get_search_model():
+    global SEARCH_MODEL
+    if SEARCH_MODEL is None:
+        SEARCH_MODEL = load_model(DEFAULT_MODEL, get_device())
+    return SEARCH_MODEL
+
+
+def get_store_data():
+    global STORE_DATA
+    if STORE_DATA is None:
+        STORE_DATA = load_store(DEFAULT_PICKLE)
+    return STORE_DATA
 
 
 def format_sources(sources):
@@ -53,20 +77,34 @@ def ask_medbot(question: str, model_name: str, top_k: int):
         )
 
     try:
-        result = pipeline.answer_question(
-            question=question,
-            api_key=gemini_api_key,
-            model=model_name,
+        store = get_store_data()
+        search_model = get_search_model()
+        results = retrieve_top_k(
+            query=question,
+            embeddings=store["embeddings"],
+            texts=store["texts"],
+            model=search_model,
             top_k=top_k,
         )
+        if not results:
+            return (
+                "No relevant context was found in the local vector store.",
+                "",
+                "",
+            )
+
+        context = "\n---\n".join(text for _, text in results)
+        sources = [f"Document {i + 1}" for i in range(len(results))]
+        answer = RagPipeline.generate_response_gemini(
+            question=question,
+            context=context,
+            api_key=gemini_api_key,
+            model=model_name,
+        )
+        source_markup = format_sources(sources)
+        return answer, context, source_markup
     except Exception as exc:
         return f"Unable to generate an answer with {model_name}: {exc}", "", ""
-
-    answer = result.get("answer", "No answer returned.")
-    context = result.get("context", "No context available.")
-    sources = result.get("sources", [])
-    source_markup = format_sources(sources)
-    return answer, context, source_markup
 
 
 def clear_outputs():

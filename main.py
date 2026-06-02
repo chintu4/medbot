@@ -19,19 +19,10 @@ def get_device():
 
 
 def load_store(path):
-    try:
-        return torch.load(
-            path,
-            map_location=torch.device("cpu"),
-            weights_only=False,
-        )
-    except Exception as e:
-        raise RuntimeError(
-            f"Could not load store.\n"
-            f"This usually means rag_store.pkl was saved with CUDA tensors.\n"
-            f"Regenerate the store with embeddings.cpu() before saving.\n\n"
-            f"Original error:\n{e}"
-        )
+    import pickle
+
+    with open(path, "rb") as f:
+        return pickle.load(f)
 
 
 def ensure_tensor(embeddings):
