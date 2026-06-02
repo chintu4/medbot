@@ -51,6 +51,19 @@ python ui/gradio_dashboard.py
 
 For a basic Gradio app, this file should create a `gr.Interface` or `gr.Blocks` instance and call `launch()`.
 
+## Standalone Retrieval Script
+A simple root-level script is available for running retrieval directly from a pickle store:
+
+```bash
+python main.py --query "what is diabetes" --top-k 3
+```
+
+By default, the script loads `rag_store.pkl` from the repository root. To specify a different store file:
+
+```bash
+python main.py --path path/to/rag_store.pkl --query "what is diabetes"
+```
+
 ## Deployment Notes for Hugging Face Spaces
 To deploy on Hugging Face Spaces:
 
