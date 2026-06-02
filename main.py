@@ -4,9 +4,9 @@ from pathlib import Path
 import torch
 from sentence_transformers import SentenceTransformer, util
 
-DEFAULT_PICKLE = Path(__file__).parent / "rag_store.pkl"
+DEFAULT_PICKLE = Path(__file__).parent / "rag_store_cpu.pkl"
 DEFAULT_MODEL = "BAAI/bge-large-en-v1.5"
-GOOGLE_DRIVE_FILE_ID = "1z3b0hd6-TFUu1fnrUi0gd1C0zugpSIv3"
+GOOGLE_DRIVE_FILE_ID = "1RLtLARA0G0v51CQckpQqfXeD10RSSA39"
 GOOGLE_DRIVE_DOWNLOAD_URL = "https://drive.google.com/uc?export=download"
 
 

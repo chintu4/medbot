@@ -58,10 +58,10 @@ A simple root-level script is available for running retrieval directly from a pi
 python main.py --query "what is diabetes" --top-k 3
 ```
 
-By default, the script loads `rag_store.pkl` from the repository root. To specify a different store file:
+By default, the script loads `rag_store_cpu.pkl` from the repository root. To specify a different store file:
 
 ```bash
-python main.py --path path/to/rag_store.pkl --query "what is diabetes"
+python main.py --path path/to/rag_store_cpu.pkl --query "what is diabetes"
 ```
 
 ## Deployment Notes for Hugging Face Spaces
