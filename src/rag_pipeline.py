@@ -281,10 +281,36 @@ class RagPipeline:
         return f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent"
 
     @staticmethod
+    def _is_text_gemini_model(name: str) -> bool:
+        lower_name = name.lower()
+        non_text_tokens = [
+            "image",
+            "img",
+            "vision",
+            "audio",
+            "speech",
+            "multimodal",
+            "video",
+            "whisper",
+            "text2img",
+            "img2img",
+            "text-to-image",
+            "image-to-text",
+        ]
+        for token in non_text_tokens:
+            if token in lower_name:
+                return False
+        return lower_name.startswith("gemini-") or "gemini" in lower_name
+
+    @staticmethod
     def list_available_gemini_models(api_key: Optional[str] = None) -> List[str]:
         api_key = _get_gemini_api_key(api_key)
         if not api_key:
             return []
+
+        def filter_models(models: List[str]) -> List[str]:
+            filtered = [name for name in models if RagPipeline._is_text_gemini_model(name)]
+            return sorted(set(filtered))
 
         if genai is not None:
             try:
@@ -296,7 +322,7 @@ class RagPipeline:
                     if name:
                         model_names.append(str(name))
                 if model_names:
-                    return model_names
+                    return filter_models(model_names)
             except Exception:
                 pass
 
@@ -310,7 +336,7 @@ class RagPipeline:
             if isinstance(data, dict) and "models" in data:
                 model_names = [m["name"] for m in data["models"] if isinstance(m, dict) and "name" in m]
                 if model_names:
-                    return model_names
+                    return filter_models(model_names)
         except Exception:
             pass
 

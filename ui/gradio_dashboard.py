@@ -22,20 +22,6 @@ HF_MODEL_CHOICES = [
     "huggingface/google/flan-t5-base",
 ]
 
-PDF_URLS = [
-    "https://bookchapter.org/kitaplar/Medical%20Diagnosis%20and%20Treatment%20Methods%20in%20Basic%20Medical%20Sciences.pdf",
-    "https://applications.emro.who.int/dsaf/dsa236.pdf",
-    "https://www.dhhs.nh.gov/sites/g/files/ehbemt476/files/documents/2021-11/disease-handbook-complete.pdf",
-    "https://www.dhhs.nh.gov/sites/g/files/ehbemt476/files/documents/2021-11/disease-handbook-complete.pdf",
-    "https://aiimsrishikesh.edu.in/documents/standard-treatment-guidelines.pdf",
-    "https://www.fao.org/4/y1238e/y1238e06.pdf",
-]
-
-PDF_PATHS = [
-    # Add local PDF paths here if needed. Example:
-    # "./docs/sample.pdf"
-]
-
 SEARCH_MODEL = None
 STORE_DATA = None
 
@@ -233,7 +219,7 @@ def build_demo():
                 )
 
                 with gr.Row():
-                    available_models = pipeline.list_available_gemini_models()
+                    available_models = RagPipeline.list_available_gemini_models()
                     if not available_models:
                         available_models = ["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"]
                     for hf_model in HF_MODEL_CHOICES:
