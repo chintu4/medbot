@@ -66,7 +66,6 @@ DEFAULT_GEMINI_MODEL_CHOICES = [
 DEFAULT_GROQ_MODEL_CHOICES = [
     "groq/llama-3.3-70b-versatile",
     "groq/llama-3.1-8b-instant",
-    "groq/mixtral-8x7b-32768",
 ]
 
 

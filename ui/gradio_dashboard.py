@@ -20,7 +20,6 @@ from main import (
 GROQ_MODEL_CHOICES = [
     "groq/llama-3.3-70b-versatile",
     "groq/llama-3.1-8b-instant",
-    "groq/mixtral-8x7b-32768",
 ]
 
 SEARCH_MODEL = None
@@ -228,9 +227,8 @@ def build_demo():
                     available_models = RagPipeline.list_available_gemini_models()
                     if not available_models:
                         available_models = ["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"]
-                    for groq_model in GROQ_MODEL_CHOICES:
-                        if groq_model not in available_models:
-                            available_models.append(groq_model)
+                    groq_models = [m for m in GROQ_MODEL_CHOICES if m not in available_models]
+                    available_models = groq_models + available_models
                     model_choice = gr.Dropdown(
                         choices=available_models,
                         value=available_models[0],
