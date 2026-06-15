@@ -24,6 +24,11 @@ except ImportError:
     Groq = None
 
 try:
+    from serpapi import GoogleSearch
+except ImportError:
+    GoogleSearch = None
+
+try:
     import faiss
     _HAS_FAISS = True
 except ImportError:
@@ -374,6 +379,69 @@ class RagPipeline:
         return []
 
     @staticmethod
+    def search_with_serpapi(
+        query: str,
+        api_key: Optional[str] = None,
+        location: Optional[str] = None,
+        num_results: int = 5,
+    ) -> str:
+        if GoogleSearch is None:
+            return ""
+
+        api_key = api_key or os.getenv("SERPAPI_KEY")
+        if not api_key:
+            return ""
+
+        params = {
+            "q": query,
+            "api_key": api_key,
+            "num": num_results,
+        }
+        if location:
+            params["location"] = location
+
+        try:
+            search = GoogleSearch(params)
+            data = search.get_dict()
+        except Exception:
+            return ""
+
+        snippets: List[str] = []
+        if isinstance(data, dict):
+            organic_results = data.get("organic_results")
+            if isinstance(organic_results, list):
+                for item in organic_results[:num_results]:
+                    title = item.get("title")
+                    snippet = item.get("snippet") or item.get("snippet", "")
+                    link = item.get("link") or item.get("url")
+                    if title:
+                        snippets.append(f"Title: {title}")
+                    if snippet:
+                        snippets.append(f"Snippet: {snippet}")
+                    if link:
+                        snippets.append(f"URL: {link}")
+                    if title or snippet or link:
+                        snippets.append("---")
+
+            answer_box = data.get("answer_box")
+            if isinstance(answer_box, dict):
+                if "answer" in answer_box:
+                    snippets.append(f"Answer Box: {answer_box['answer']}")
+                if "snippet" in answer_box:
+                    snippets.append(f"Snippet: {answer_box['snippet']}")
+                if "title" in answer_box:
+                    snippets.append(f"Title: {answer_box['title']}")
+
+            if not snippets:
+                knowledge_graph = data.get("knowledge_graph")
+                if isinstance(knowledge_graph, dict):
+                    description = knowledge_graph.get("description")
+                    if description:
+                        snippets.append(f"Knowledge Graph: {description}")
+
+        return "\n".join(snippets).strip()
+
+    @staticmethod
     def _parse_gemini_response(data: Dict) -> str:
         if not isinstance(data, dict):
             return ""
@@ -427,7 +495,7 @@ class RagPipeline:
 
         endpoint = RagPipeline._build_gemini_endpoint(api_key, model)
         prompt_text = (
-            "You are an expert medical assistant. Use the context from the PDFs to answer the question precisely. "
+            "You are an expert medical assistant. Use the context from the PDFs and any external search results to answer the question precisely. "
             "If the answer is not contained in the context, say you cannot find enough information.\n\n"
             f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
         )
@@ -488,7 +556,7 @@ class RagPipeline:
             model = model.split(":", 1)[1]
 
         prompt_text = (
-            "You are an expert medical assistant. Use the context from the PDFs to answer the question precisely. "
+            "You are an expert medical assistant. Use the context from the PDFs and any external search results to answer the question precisely. "
             "If the answer is not contained in the context, say you cannot find enough information.\n\n"
             f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
         )

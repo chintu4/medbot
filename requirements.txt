@@ -13,3 +13,4 @@ huggingface-hub
 torch>=2.0.0
 pypdf
 groq
+google-search-results

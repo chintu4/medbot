@@ -88,14 +88,18 @@ def ask_medbot(question: str, model_name: str, top_k: int):
             top_k=top_k,
         )
         if not results:
-            return (
-                "No relevant context was found in the local vector store.",
-                "",
-                "",
-            )
-
-        context = "\n---\n".join(text for _, text in results)
-        sources = [f"Document {i + 1}" for i in range(len(results))]
+            serp_context = RagPipeline.search_with_serpapi(question)
+            if not serp_context:
+                return (
+                    "No relevant context was found in the local vector store and external search produced no useful information. I don't know.",
+                    "",
+                    "",
+                )
+            context = f"External search results from SerpAPI:\n{serp_context}"
+            sources = ["SerpAPI external search"]
+        else:
+            context = "\n---\n".join(text for _, text in results)
+            sources = [f"Document {i + 1}" for i in range(len(results))]
         if is_groq_model:
             answer = RagPipeline.generate_response_groq(
                 question=question,
