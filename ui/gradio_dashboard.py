@@ -22,6 +22,12 @@ HF_MODEL_CHOICES = [
     "huggingface/google/flan-t5-base",
 ]
 
+GROQ_MODEL_CHOICES = [
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama-3.1-8b-instant",
+    "groq/mixtral-8x7b-32768",
+]
+
 SEARCH_MODEL = None
 STORE_DATA = None
 
@@ -61,16 +67,22 @@ def ask_medbot(question: str, model_name: str, top_k: int):
     if not gemini_api_key:
         gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GENAI_API_KEY")
 
+    groq_api_key = os.getenv("GROQ_API_KEY") or os.getenv("GROQ_TOKEN")
     hf_api_key = os.getenv("HUGGINGFACE_API_KEY") or os.getenv("HF_API_KEY") or os.getenv("HUGGINGFACE_TOKEN")
-    is_hf_model = model_name.startswith("huggingface/") or model_name.startswith("hf:")
 
-    if not is_hf_model and not gemini_api_key:
+    is_hf_model = model_name.startswith("huggingface/") or model_name.startswith("hf:")
+    is_groq_model = model_name.startswith("groq/") or model_name.startswith("groq:")
+
+    if not is_hf_model and not is_groq_model and not gemini_api_key:
         if hf_api_key:
             is_hf_model = True
             model_name = HF_MODEL_CHOICES[0]
+        elif groq_api_key:
+            is_groq_model = True
+            model_name = GROQ_MODEL_CHOICES[0]
         else:
             return (
-                "Server-side Gemini API key is not configured. Set GEMINI_API_KEY, GOOGLE_API_KEY, or GOOGLE_GENAI_API_KEY, or use a Hugging Face model with HUGGINGFACE_API_KEY.",
+                "Server-side Gemini/Groq API key is not configured. Set GEMINI_API_KEY, GOOGLE_API_KEY, GOOGLE_GENAI_API_KEY, GROQ_API_KEY, or use a Hugging Face model with HUGGINGFACE_API_KEY.",
                 "",
                 "",
             )
@@ -99,6 +111,13 @@ def ask_medbot(question: str, model_name: str, top_k: int):
                 question=question,
                 context=context,
                 api_key=hf_api_key,
+                model=model_name,
+            )
+        elif is_groq_model:
+            answer = RagPipeline.generate_response_groq(
+                question=question,
+                context=context,
+                api_key=groq_api_key,
                 model=model_name,
             )
         else:
@@ -222,6 +241,9 @@ def build_demo():
                     available_models = RagPipeline.list_available_gemini_models()
                     if not available_models:
                         available_models = ["gemini-2.5-flash", "gemini-2.5-lite", "gemini-3.0-flash"]
+                    for groq_model in GROQ_MODEL_CHOICES:
+                        if groq_model not in available_models:
+                            available_models.append(groq_model)
                     for hf_model in HF_MODEL_CHOICES:
                         if hf_model not in available_models:
                             available_models.append(hf_model)

@@ -19,6 +19,11 @@ except ImportError:
     genai = None
 
 try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
+try:
     import faiss
     _HAS_FAISS = True
 except ImportError:
@@ -40,12 +45,23 @@ HF_ENV_KEYS = (
     "HUGGINGFACE_TOKEN",
 )
 
+GROQ_ENV_KEYS = (
+    "GROQ_API_KEY",
+    "GROQ_TOKEN",
+)
+
 DEFAULT_GEMINI_MODEL_CHOICES = [
     "gemini-3.5-flash",
     "gemini-3.5-pro",
     "gemini-3.0-flash",
     "gemini-2.5-flash",
     "gemini-2.5-lite",
+]
+
+DEFAULT_GROQ_MODEL_CHOICES = [
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama-3.1-8b-instant",
+    "groq/mixtral-8x7b-32768",
 ]
 
 
@@ -65,6 +81,19 @@ def _get_gemini_api_key(api_key: Optional[str] = None) -> Optional[str]:
         if value:
             return value
     return None
+
+
+def _get_groq_api_key(api_key: Optional[str] = None) -> Optional[str]:
+    if api_key:
+        return api_key
+
+    _load_environment()
+    for env_key in GROQ_ENV_KEYS:
+        value = os.getenv(env_key)
+        if value:
+            return value
+    return None
+
 
 @staticmethod
 def _get_hf_api_key(api_key: Optional[str] = None) -> Optional[str]:
@@ -296,7 +325,8 @@ class RagPipeline:
             "img2img",
             "text-to-image",
             "image-to-text",
-            "computer"
+            "computer",
+            "embedding"
         ]
         for token in non_text_tokens:
             if token in lower_name:
@@ -438,6 +468,51 @@ class RagPipeline:
         response.raise_for_status()
         data = response.json()
         return RagPipeline._parse_gemini_response(data)
+
+    @staticmethod
+    def generate_response_groq(
+        question: str,
+        context: str,
+        api_key: Optional[str] = None,
+        model: str = "groq/llama-3.1-8b-instant",
+        temperature: float = 0.2,
+        max_tokens: int = 512,
+    ) -> str:
+        api_key = _get_groq_api_key(api_key)
+        if not api_key:
+            raise ValueError("Groq API key is required. Set GROQ_API_KEY or GROQ_TOKEN.")
+
+        if model.startswith("groq/"):
+            model = model.split("/", 1)[1]
+        if model.startswith("groq:"):
+            model = model.split(":", 1)[1]
+
+        prompt_text = (
+            "You are an expert medical assistant. Use the context from the PDFs to answer the question precisely. "
+            "If the answer is not contained in the context, say you cannot find enough information.\n\n"
+            f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+        )
+
+        if Groq is None:
+            raise RuntimeError("The 'groq' package is not installed. Install it with pip install groq.")
+
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt_text}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        choices = getattr(response, "choices", None)
+        if choices:
+            first = choices[0]
+            message = getattr(first, "message", None)
+            if message is not None:
+                content = getattr(message, "content", None)
+                if isinstance(content, str) and content.strip():
+                    return content.strip()
+        return str(response).strip()
 
     @staticmethod
     def generate_response_hf(
