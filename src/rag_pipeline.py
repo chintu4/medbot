@@ -296,6 +296,7 @@ class RagPipeline:
             "img2img",
             "text-to-image",
             "image-to-text",
+            "computer"
         ]
         for token in non_text_tokens:
             if token in lower_name:
